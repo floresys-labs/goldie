@@ -9,6 +9,7 @@ import {
   type SKRSContext2D,
 } from "@napi-rs/canvas";
 import type { CaptureManifest } from "./capture.ts";
+import { captureRawDir } from "./capture-safety.ts";
 import {
   type Decoration,
   framePath,
@@ -22,8 +23,12 @@ import { registerFonts } from "./fonts.ts";
 import { BADGE, type Composition, compose, SCREEN_SHADOW, TYPE } from "./layouts.ts";
 import { DEVICES, type DeviceKey, PREVIEW, SCREENSHOT_PIXEL_FORMAT } from "./specs.ts";
 
-async function readManifest(cfg: LoadedConfig, deviceKey: DeviceKey): Promise<CaptureManifest> {
-  const file = join(cfg.outDir, "raw", deviceKey, "manifest.json");
+async function readManifest(
+  cfg: LoadedConfig,
+  deviceKey: DeviceKey,
+  locale: string,
+): Promise<CaptureManifest> {
+  const file = join(captureRawDir(cfg.outDir, deviceKey, locale), "manifest.json");
   try {
     return JSON.parse(await readFile(file, "utf8"));
   } catch {
@@ -41,7 +46,7 @@ async function readManifest(cfg: LoadedConfig, deviceKey: DeviceKey): Promise<Ca
  */
 export async function renderScreenshots(cfg: LoadedConfig, deviceKey: DeviceKey, locale: string) {
   const spec = DEVICES[deviceKey];
-  const manifest = await readManifest(cfg, deviceKey);
+  const manifest = await readManifest(cfg, deviceKey, locale);
   const outDir = join(cfg.outDir, "screenshots", spec.label, locale);
   await mkdir(outDir, { recursive: true });
   // A layout change renumbers the files; stale ones would otherwise be exported.
@@ -447,7 +452,7 @@ export async function renderPreview(cfg: LoadedConfig, deviceKey: DeviceKey, loc
   const spec = DEVICES[deviceKey];
   const scene = cfg.scenes.find(isPreview);
   if (!scene) return null;
-  const manifest = await readManifest(cfg, deviceKey);
+  const manifest = await readManifest(cfg, deviceKey, locale);
   if (!manifest.preview)
     throw new Error("No preview clips in the capture manifest. Run: goldie capture");
 

@@ -12,7 +12,10 @@ async function onPath(bin: string, args: string[] = ["--version"]): Promise<bool
   return (await exec(bin, args, { quiet: true })).code === 0;
 }
 
-export async function doctor(cfg: LoadedConfig): Promise<boolean> {
+export async function doctor(
+  cfg: LoadedConfig,
+  exactUdid = process.env.SHIPATON_SIMULATOR_UDID,
+): Promise<boolean> {
   const checks: Check[] = [];
 
   checks.push({
@@ -81,12 +84,13 @@ export async function doctor(cfg: LoadedConfig): Promise<boolean> {
 
   for (const key of cfg.devices) {
     const spec = DEVICES[key];
-    const udid = await device.resolveUdid(key).catch(() => null);
+    const udid = exactUdid ? await device.resolveUdid(key, exactUdid).catch(() => null) : null;
     checks.push({
       name: `simulator ${spec.simulatorName}`,
       ok: Boolean(udid),
-      detail: udid ?? "not installed",
-      fix: `xcrun simctl create "${spec.simulatorName}" "${spec.simulatorName}"`,
+      detail:
+        udid ?? (exactUdid ? `${exactUdid} is unavailable or the wrong device type` : "unset"),
+      fix: "Pass --udid <UUID> or set SHIPATON_SIMULATOR_UDID to the dedicated simulator",
     });
   }
 

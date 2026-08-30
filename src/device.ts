@@ -1,42 +1,20 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
 import * as argent from "./argent.ts";
+import { type SimulatorDevice, selectExactSimulator } from "./capture-safety.ts";
 import { exec, execOrThrow } from "./exec.ts";
 import { DEVICES, type DeviceKey } from "./specs.ts";
 
-type SimDevice = { udid: string; name: string; state: string; isAvailable?: boolean };
-
-async function simctlDevices(): Promise<Record<string, SimDevice[]>> {
+async function simctlDevices(): Promise<Record<string, SimulatorDevice[]>> {
   const r = await execOrThrow("xcrun", ["simctl", "list", "devices", "available", "--json"]);
-  return JSON.parse(r.stdout).devices as Record<string, SimDevice[]>;
+  return JSON.parse(r.stdout).devices as Record<string, SimulatorDevice[]>;
 }
 
-/** Newest-runtime simulator matching the device spec's name. */
-export async function resolveUdid(key: DeviceKey): Promise<string> {
+/** Validates and returns the exact simulator selected by the caller. */
+export async function resolveUdid(key: DeviceKey, exactUdid: string): Promise<string> {
   const spec = DEVICES[key];
   const byRuntime = await simctlDevices();
-  const runtimes = Object.keys(byRuntime)
-    .filter((r) => r.includes("iOS"))
-    .sort(compareRuntime);
-  for (const runtime of runtimes) {
-    const hit = byRuntime[runtime]?.find((d) => d.name === spec.simulatorName);
-    if (hit) return hit.udid;
-  }
-  throw new Error(
-    `No "${spec.simulatorName}" simulator installed. Add one in Xcode > Settings > Components, ` +
-      `or run: xcrun simctl create "${spec.simulatorName}" "${spec.simulatorName}"`,
-  );
-}
-
-/** Sorts iOS runtime identifiers newest-first ("...iOS-18-5" before "...iOS-18-3"). */
-function compareRuntime(a: string, b: string): number {
-  const nums = (s: string) => (s.match(/\d+/g) ?? []).map(Number);
-  const [an, bn] = [nums(a), nums(b)];
-  for (let i = 0; i < Math.max(an.length, bn.length); i++) {
-    const d = (bn[i] ?? 0) - (an[i] ?? 0);
-    if (d !== 0) return d;
-  }
-  return 0;
+  return selectExactSimulator(byRuntime, exactUdid, spec.simulatorDeviceType).udid;
 }
 
 export async function boot(udid: string): Promise<void> {

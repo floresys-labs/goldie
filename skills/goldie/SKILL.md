@@ -45,20 +45,20 @@ the store listing, and the preview story. Nothing lives only in your head or
 in the studio, so a user who says "make it darker" or "swap the search
 screenshot for settings" is asking for an edit to those files.
 
-## Step 0: Make sure goldie runs
+## Step 0: Use the approved checkout
 
-goldie is an npm package that bundles the CLI, the studio and a pinned argent
-driver. Nothing needs cloning; `npx` fetches it on first use:
+Use only a reviewed, exactly pinned checkout supplied in `GOLDIE_ROOT`. Do not
+run a floating npm version or install dependencies implicitly. Confirm the
+revision and use the source CLI:
 
 ```bash
-npx -y goldie@0 help
+git -C "$GOLDIE_ROOT" rev-parse HEAD
+bun "$GOLDIE_ROOT/src/cli.ts" help
 ```
 
-Every command below is `npx -y goldie@0 <cmd>`, referred to as `goldie`.
-It needs Node 20+ and `ffmpeg` on the PATH (`brew install ffmpeg`). If
-`$GOLDIE_ROOT` is set, the user is working from a source checkout; run
-`bun $GOLDIE_ROOT/src/cli.ts <cmd>` instead. All app-specific files live in
-the app repo.
+Every command below uses `bun "$GOLDIE_ROOT/src/cli.ts" <cmd>`, referred to as
+`goldie`. It needs Node 20+ and `ffmpeg` on the PATH. Do not install missing
+tools without explicit approval. All app-specific files live in the app repo.
 
 ## Step 1: Gather app facts
 
@@ -74,11 +74,13 @@ From the app repo, find:
 
 ## Step 2: Explore the app and choose the scenes
 
-Use argent MCP tools to see the app before deciding anything. Boot an iPhone
-16 Pro Max class simulator, install the Release build, launch it, and walk the
-main screens with `describe` and `screenshot`. Also check the app repo for
-existing recorded flows in `.argent/flows/`; they are the best source of
-working selectors and coordinates.
+Use argent MCP tools to see the app before deciding anything. Resolve the exact
+dedicated capture simulator from `SHIPATON_SIMULATOR_UDID`; never select a
+booted or name-matching device. Installing or reinstalling can wipe app data,
+so obtain fresh authorization before doing either. Use only synthetic fixtures
+and a disposable account. Then walk the main screens with `describe` and
+`screenshot`. Also check the app repo for existing recorded flows in
+`.argent/flows/`; they are the best source of working selectors and coordinates.
 
 Choose:
 
@@ -135,23 +137,28 @@ Shell state does not persist between your Bash calls, so prefix every goldie
 command with it:
 
 ```bash
-GOLDIE_CONFIG=<app-repo>/goldie/goldie.config.ts npx -y goldie@0 doctor
+GOLDIE_CONFIG=<app-repo>/goldie/goldie.config.ts \
+  bun "$GOLDIE_ROOT/src/cli.ts" doctor --udid "$SHIPATON_SIMULATOR_UDID"
 ```
 
 Fix everything doctor flags before capturing. The usual findings and their
 fixes are in the Gotchas section of goldie's README; the common ones are the
 argent video watermark flag, a screenshot scale override, and a Debug build.
 
-Then capture and render the stills (skip the video for now, it takes minutes):
+State the exact UDID and that capture reinstalls the app and can wipe its data.
+After the user gives fresh approval, capture one requested locale at a time,
+visually verify the in-app language, and render that locale:
 
 ```bash
-GOLDIE_CONFIG=... npx -y goldie@0 capture
-GOLDIE_CONFIG=... npx -y goldie@0 frame
-GOLDIE_CONFIG=... npx -y goldie@0 manifest
+GOLDIE_CONFIG=... bun "$GOLDIE_ROOT/src/cli.ts" capture \
+  --locale <code> --udid "$SHIPATON_SIMULATOR_UDID" --allow-reinstall
+GOLDIE_CONFIG=... bun "$GOLDIE_ROOT/src/cli.ts" frame --locale <code>
+GOLDIE_CONFIG=... bun "$GOLDIE_ROOT/src/cli.ts" manifest
 ```
 
 `capture` replays every flow, including the preview segments, so the raw clips
-exist for the lazy video render later.
+exist for the lazy video render later. Raw evidence is isolated under
+`out/raw/<device>/<locale>/`; never reuse one locale's capture for another.
 
 ### When a flow breaks
 
@@ -168,23 +175,25 @@ Start the studio in the background. It needs `GOLDIE_CONFIG` too, so it
 serves the app repo's `out/`:
 
 ```bash
-GOLDIE_CONFIG=... npx -y goldie@0 studio --no-open   # background task; serves http://localhost:4321
+GOLDIE_CONFIG=... bun "$GOLDIE_ROOT/src/cli.ts" studio --no-open
 ```
 
 Tell the user it is up at http://localhost:4321. Then, also in the background,
 render the preview video so it appears on reload once done:
 
 ```bash
-GOLDIE_CONFIG=... npx -y goldie@0 preview && GOLDIE_CONFIG=... npx -y goldie@0 manifest
+GOLDIE_CONFIG=... bun "$GOLDIE_ROOT/src/cli.ts" preview --locale <code>
+GOLDIE_CONFIG=... bun "$GOLDIE_ROOT/src/cli.ts" manifest
 ```
 
 If `preview` refuses because the total is outside 15 to 30 seconds, adjust
 segment pacing (`wait:` steps and `holdSeconds`) and re-capture only what
 changed.
 
-Finish with `GOLDIE_CONFIG=... npx -y goldie@0 verify` and report the result: which
-assets exist, where they are, and whether they pass Apple's rules. The
-studio's sidebar shows the same checks; a red row is a rule violation. The
+Finish with `GOLDIE_CONFIG=... bun "$GOLDIE_ROOT/src/cli.ts" verify --locale
+<code>` and report the result: which assets exist, where they are, and whether
+they pass Apple's rules. The studio's sidebar shows the same checks; a red row
+is a rule violation. The
 Design panel lets the user restyle backgrounds, layouts, bezels and fonts
 without you, and Export downloads an upload-ready zip.
 
@@ -210,10 +219,10 @@ the next prompt can build on it.
 | Change the preview story or its pacing | preview `segments[]`, `holdSeconds`, flow `wait:` steps | `capture`, `preview`, `manifest` |
 | Another locale | `locales`, plus a `<locale>` key in every copy record | `capture`, `frame`, `preview`, `manifest` |
 
-`capture` replays every flow; to re-capture only what changed, keep the
-other scenes as they are and accept the extra minute, or delete only the
-stale files under `out/raw/` before running it. `frame` and `manifest` take
-seconds, so run them freely. The studio at http://localhost:4321 picks up
+`capture` replays every flow for each requested locale; to re-capture only what
+changed, use `--locale <code>` and accept the extra minute. Do not delete raw
+evidence unless the user explicitly approves the exact resolved path. `frame`
+and `manifest` take seconds, so run them freely. The studio at http://localhost:4321 picks up
 changes on reload; start it again with `GOLDIE_CONFIG` if it is not running.
 
 The studio's Design panel writes to `goldie.design.json` next to the config,
@@ -225,4 +234,3 @@ value into `theme.background`, `frame.variant`, `theme.fontFamily`,
 starts from what they see. The
 current on-disk values are also in `goldie/out/web/store.json` under `design`,
 which is the fastest way to confirm what the studio is showing right now.
-

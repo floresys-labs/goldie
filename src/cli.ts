@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { capture } from "./capture.ts";
+import { requireCaptureAuthorization } from "./capture-safety.ts";
 import {
   applyDesign,
   type FrameVariant,
@@ -37,6 +38,8 @@ Options
   --config <path>   Config file (default ./goldie.config.ts)
   --device <key>    Only this device key (default: every device in the config)
   --locale <code>   Only this locale (default: every locale in the config)
+  --udid <uuid>     Exact simulator for capture (or SHIPATON_SIMULATOR_UDID)
+  --allow-reinstall Confirm fresh approval to reinstall and wipe simulator app data
   --background <css>  Override theme.background for this run (also clears per-scene backgrounds); "transparent" keeps alpha
   --frame <variant>   Override the screenshot bezel variant for this run (17-pro-silver | 17-pro-blue | 17-pro-orange)
   --font <key>        Override theme.fontFamily for this run (system | ${FONT_KEYS.join(" | ")})
@@ -83,11 +86,13 @@ async function main() {
 
   switch (command) {
     case "doctor":
-      return (await doctor(cfg)) ? 0 : 1;
+      return (await doctor(cfg, opt("udid"))) ? 0 : 1;
 
-    case "capture":
-      await runCapture(cfg, devices);
+    case "capture": {
+      const authorization = requireCaptureAuthorization(argv);
+      await runCapture(cfg, devices, locales, authorization.udid);
       return 0;
+    }
 
     case "frame":
       for (const d of devices) for (const l of locales) await renderScreenshots(cfg, d, l);
@@ -119,8 +124,9 @@ async function main() {
     }
 
     case "all": {
-      if (!(await doctor(cfg))) return 1;
-      await runCapture(cfg, devices);
+      const authorization = requireCaptureAuthorization(argv);
+      if (!(await doctor(cfg, authorization.udid))) return 1;
+      await runCapture(cfg, devices, locales, authorization.udid);
       for (const d of devices) {
         for (const l of locales) {
           await renderScreenshots(cfg, d, l);
@@ -145,11 +151,16 @@ function packageVersion(): string {
   return JSON.parse(readFileSync(pkg, "utf8")).version;
 }
 
-async function runCapture(cfg: LoadedConfig, devices: DeviceKey[]) {
+async function runCapture(
+  cfg: LoadedConfig,
+  devices: DeviceKey[],
+  locales: string[],
+  exactUdid: string,
+) {
   for (const d of devices) {
-    const udid = await device.resolveUdid(d);
+    const udid = await device.resolveUdid(d, exactUdid);
     try {
-      await capture(cfg, d);
+      for (const locale of locales) await capture(cfg, d, locale, udid);
     } finally {
       // Leave the simulator as it was found; a pinned status bar is sticky.
       await device.clearStatusBar(udid);
