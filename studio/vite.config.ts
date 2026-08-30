@@ -30,6 +30,15 @@ export default defineConfig(({ command }) => ({
   plugins: [react(), tailwindcss(), goldieApi()],
   resolve: { alias: { "@": SRC_DIR } },
   publicDir: command === "build" ? false : PATHS.webDir,
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          ui: ["lucide-react", "motion", "radix-ui"],
+        },
+      },
+    },
+  },
   server: { port: 4321, open: true, fs: { allow: [GOLDIE_ROOT, PATHS.outDir] } },
 }));
 

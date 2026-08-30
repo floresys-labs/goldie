@@ -1,6 +1,7 @@
 import { copyFile, mkdir, readdir, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import type { CaptureManifest } from "./capture.ts";
+import { canonicalCaptureLocale, captureRawDir } from "./capture-safety.ts";
 import {
   type Decoration,
   FRAME_VARIANTS,
@@ -87,13 +88,16 @@ export type StoreManifest = {
       sceneId: string;
       segments: Array<{ id: string }>;
     } | null;
-    /** Raw capture urls per device key; a device is absent until `goldie capture` ran. */
+    /** Raw capture urls per device and locale; a pair is absent until capture ran. */
     captures: Record<
       string,
-      {
-        screenshots: Array<{ sceneId: string; url: string }>;
-        clips: Array<{ segmentId: string; url: string; durationSeconds: number }> | null;
-      }
+      Record<
+        string,
+        {
+          screenshots: Array<{ sceneId: string; url: string }>;
+          clips: Array<{ segmentId: string; url: string; durationSeconds: number }> | null;
+        }
+      >
     >;
   };
 };
@@ -182,21 +186,26 @@ export async function writeManifest(cfg: LoadedConfig): Promise<string> {
 
   const captures: StoreManifest["design"]["captures"] = {};
   for (const deviceKey of cfg.devices) {
-    const raw = await readCaptureManifest(cfg, deviceKey);
-    if (!raw) continue;
-    captures[deviceKey] = {
-      screenshots: raw.screenshots.map((s) => ({
-        sceneId: s.sceneId,
-        url: `raw/${deviceKey}/${basename(s.file)}`,
-      })),
-      clips: raw.preview
-        ? raw.preview.clips.map((c) => ({
-            segmentId: c.segmentId,
-            url: `raw/${deviceKey}/${basename(c.file)}`,
-            durationSeconds: c.durationSeconds,
-          }))
-        : null,
-    };
+    const localized: StoreManifest["design"]["captures"][string] = {};
+    for (const locale of cfg.locales) {
+      const raw = await readCaptureManifest(cfg, deviceKey, locale);
+      if (!raw) continue;
+      const rawLocale = canonicalCaptureLocale(locale);
+      localized[locale] = {
+        screenshots: raw.screenshots.map((s) => ({
+          sceneId: s.sceneId,
+          url: `raw/${deviceKey}/${rawLocale}/${basename(s.file)}`,
+        })),
+        clips: raw.preview
+          ? raw.preview.clips.map((c) => ({
+              segmentId: c.segmentId,
+              url: `raw/${deviceKey}/${rawLocale}/${basename(c.file)}`,
+              durationSeconds: c.durationSeconds,
+            }))
+          : null,
+      };
+    }
+    if (Object.keys(localized).length > 0) captures[deviceKey] = localized;
   }
 
   const previewScene = cfg.scenes.find(isPreview);
@@ -248,9 +257,11 @@ export async function writeManifest(cfg: LoadedConfig): Promise<string> {
 async function readCaptureManifest(
   cfg: LoadedConfig,
   deviceKey: DeviceKey,
+  locale: string,
 ): Promise<CaptureManifest | null> {
   try {
-    return JSON.parse(await readFile(join(cfg.outDir, "raw", deviceKey, "manifest.json"), "utf8"));
+    const file = join(captureRawDir(cfg.outDir, deviceKey, locale), "manifest.json");
+    return JSON.parse(await readFile(file, "utf8"));
   } catch {
     return null;
   }

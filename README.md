@@ -49,10 +49,16 @@ Copy `goldie.config.example.ts` to `goldie.config.ts`, point its scenes at
 argent flows in `.argent/flows`, then:
 
 ```
-goldie doctor     Check tools, simulators and flows
-goldie all        Capture, frame, render the preview and verify
+goldie doctor --udid <uuid>                  Check tools, exact simulator and flows
+goldie all --udid <uuid> --allow-reinstall   Capture, frame, preview and verify
 goldie studio     Preview and tweak the assets in the browser
 ```
+
+`capture` and `all` require an exact simulator UDID and explicit reinstall
+approval because deterministic capture reinstalls the app and can wipe its
+simulator data. Set `SHIPATON_SIMULATOR_UDID` instead of repeating `--udid`.
+Every configured locale is captured separately under
+`out/raw/<device>/<locale>/`; `--locale <code>` limits a run to one locale.
 
 Output lands in `out/`: 6.9" screenshots (1320 x 2868) and a 886 x 1920
 H.264 preview, per locale. Previews must run 15 to 30 seconds.
@@ -78,6 +84,8 @@ config also takes:
 ## Remarks
 
 - Use a Release build; Debug builds paint LogBox banners into captures.
+- Use a dedicated simulator with synthetic data. Never capture a personal or
+  production-signed-in simulator.
 - Flows fail when the app changes. Ask coding agent to repair them, or re-record
   with argent.
 

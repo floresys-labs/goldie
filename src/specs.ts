@@ -10,8 +10,10 @@ export type DeviceKey = "iphone-6.9";
 export type DeviceSpec = {
   /** Human label used in output paths and logs. */
   label: string;
-  /** `xcrun simctl` device type name; the toolkit picks the newest runtime that has it. */
+  /** Human-readable CoreSimulator device type name. */
   simulatorName: string;
+  /** Exact CoreSimulator device type required for capture. */
+  simulatorDeviceType: string;
   /** Native capture resolution of that simulator, portrait. */
   native: { width: number; height: number };
   /** Required screenshot upload size, portrait. */
@@ -24,6 +26,7 @@ export const DEVICES: Record<DeviceKey, DeviceSpec> = {
   "iphone-6.9": {
     label: "6.9",
     simulatorName: "iPhone 17 Pro Max",
+    simulatorDeviceType: "com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro-Max",
     native: { width: 1320, height: 2868 },
     screenshot: { width: 1320, height: 2868 },
     preview: { width: 886, height: 1920 },

@@ -167,7 +167,7 @@ function Loaded({ manifest, saved }: { manifest: StoreManifest; saved: SavedDesi
   }, [design.fonts]);
 
   const spec = manifest.devices.find((d) => d.key === device);
-  const captures = design.captures[device];
+  const captures = design.captures[device]?.[locale];
   const frameUrl = frame
     ? `frames/${frame}.png`
     : (design.customFrameUrl ?? `frames/${design.frameVariants[0]}.png`);
@@ -224,7 +224,9 @@ function Loaded({ manifest, saved }: { manifest: StoreManifest; saved: SavedDesi
               />
             </div>
           ) : (
-            <Empty message={`No raw captures for ${device}. Run: bun src/cli.ts capture`} />
+            <Empty
+              message={`No raw captures for ${device}/${locale}. Run: bun src/cli.ts capture --locale ${locale}`}
+            />
           )}
         </main>
       </div>

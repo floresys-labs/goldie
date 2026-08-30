@@ -1,6 +1,7 @@
 import { copyFile, mkdir, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import * as argent from "./argent.ts";
+import { canonicalCaptureLocale, captureRawDir } from "./capture-safety.ts";
 import {
   flowPath,
   isPreview,
@@ -25,10 +26,11 @@ async function runFlow(path: string, udid: string) {
   return argent.flow(path, udid);
 }
 
-/** What `frame`/`preview` read. Written to out/raw/<device>/manifest.json. */
+/** What `frame`/`preview` read. Written to out/raw/<device>/<locale>/manifest.json. */
 export type CaptureManifest = {
   device: DeviceKey;
   udid: string;
+  locale: string;
   capturedAt: string;
   screenshots: Array<{ sceneId: string; file: string }>;
   preview: {
@@ -37,14 +39,19 @@ export type CaptureManifest = {
   } | null;
 };
 
-export async function capture(cfg: LoadedConfig, deviceKey: DeviceKey): Promise<CaptureManifest> {
+export async function capture(
+  cfg: LoadedConfig,
+  deviceKey: DeviceKey,
+  locale: string,
+  udid: string,
+): Promise<CaptureManifest> {
   const spec = DEVICES[deviceKey];
-  const udid = await device.resolveUdid(deviceKey);
-  const rawDir = join(cfg.outDir, "raw", deviceKey);
+  const canonicalLocale = canonicalCaptureLocale(locale);
+  const rawDir = captureRawDir(cfg.outDir, deviceKey, canonicalLocale);
   await mkdir(rawDir, { recursive: true });
 
   console.log(`> ${spec.simulatorName} (${udid})`);
-  await device.prepare(udid, cfg.locales[0]!, cfg.appearance);
+  await device.prepare(udid, canonicalLocale, cfg.appearance);
   // A reinstall wipes app data, which is what makes a re-capture deterministic:
   // flows that create records start from the same empty state every run.
   await device.installApp(udid, resolve(cfg.root, cfg.appPath), cfg.bundleId);
@@ -55,6 +62,7 @@ export async function capture(cfg: LoadedConfig, deviceKey: DeviceKey): Promise<
   const manifest: CaptureManifest = {
     device: deviceKey,
     udid,
+    locale: canonicalLocale,
     capturedAt: new Date().toISOString(),
     screenshots: [],
     preview: null,
