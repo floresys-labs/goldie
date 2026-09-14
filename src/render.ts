@@ -19,7 +19,7 @@ import {
   type Theme,
 } from "./config.ts";
 import { exec, execOrThrow } from "./exec.ts";
-import { registerFonts } from "./fonts.ts";
+import { clampWeight, registerFonts } from "./fonts.ts";
 import { BADGE, type Composition, compose, SCREEN_SHADOW, TYPE } from "./layouts.ts";
 import { DEVICES, type DeviceKey, PREVIEW, SCREENSHOT_PIXEL_FORMAT } from "./specs.ts";
 
@@ -167,7 +167,7 @@ function drawCopy(
   const blocks = [
     {
       text: text.headline,
-      font: `${TYPE.headlineWeight} ${tile.width * TYPE.headlineSize}px ${theme.fontFamily}`,
+      font: `${clampWeight(theme.fontFamily, TYPE.headlineWeight)} ${tile.width * TYPE.headlineSize}px ${theme.fontFamily}`,
       color: theme.headlineColor,
       lineHeight: TYPE.headlineLineHeight,
       letterSpacing: tile.width * TYPE.headlineTracking,
@@ -176,7 +176,7 @@ function drawCopy(
       ? [
           {
             text: text.subhead,
-            font: `${TYPE.subheadWeight} ${tile.width * TYPE.subheadSize}px ${theme.fontFamily}`,
+            font: `${clampWeight(theme.fontFamily, TYPE.subheadWeight)} ${tile.width * TYPE.subheadSize}px ${theme.fontFamily}`,
             color: theme.subheadColor,
             lineHeight: TYPE.subheadLineHeight,
             letterSpacing: 0,
@@ -260,7 +260,7 @@ async function drawDecorations(
   for (const d of decorations) {
     if (d.kind === "badge") {
       const text = pick(d.text, locale, sceneId, "badge");
-      const font = `${BADGE.weight} ${tile.width * BADGE.fontSize}px ${cfg.theme.fontFamily}`;
+      const font = `${clampWeight(cfg.theme.fontFamily, BADGE.weight)} ${tile.width * BADGE.fontSize}px ${cfg.theme.fontFamily}`;
       ctx.font = font;
       ctx.letterSpacing = "0px";
       const size = fontSize(font);
