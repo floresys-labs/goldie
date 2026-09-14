@@ -25,6 +25,14 @@ export const FONTS = {
     fallback: "Georgia, serif",
     files: { 400: "Merriweather-400.ttf", 700: "Merriweather-700.ttf" },
   },
+  newsreader: {
+    family: "Newsreader",
+    fallback: "Georgia, serif",
+    // Ships one cut: the 16pt optical size's Medium, the exact binary Mukaase
+    // renders its own recipe titles from. No 400 or 700 cut exists — do not
+    // add one from elsewhere, it would stop matching the app.
+    files: { 500: "Newsreader16pt-Medium.ttf" },
+  },
   "dm-mono": {
     family: "DM Mono",
     fallback: "ui-monospace, Menlo, monospace",
@@ -68,6 +76,31 @@ export function fontStack(key: string): string {
     throw new Error(`Unknown font "${key}". Available: system, ${FONT_KEYS.join(", ")}`);
   }
   return `"${font.family}", ${font.fallback}`;
+}
+
+/** The first family name in a CSS font-family stack, unquoted. */
+function firstFamily(fontFamily: string): string {
+  return (fontFamily.split(",")[0] ?? "").trim().replace(/^["']|["']$/g, "");
+}
+
+/**
+ * Caps a requested font-weight at the heaviest cut a bundled font actually
+ * ships. Canvas synthesises a fake bold for a weight no registered face
+ * matches — visibly thicker, distorted strokes, not the typeface's own
+ * design — so a single-cut font (Newsreader ships only its 500 Medium) must
+ * never be asked for 700. Unrecognised or multi-cut families (a system
+ * stack, or a bundled font whose heaviest cut already covers the request)
+ * pass the requested weight through unchanged.
+ */
+export function clampWeight(fontFamily: string, weight: number): number {
+  const family = firstFamily(fontFamily);
+  const font = Object.values(FONTS as Record<string, BundledFont>).find(
+    (candidate) => candidate.family === family,
+  );
+  if (!font) return weight;
+  const available = Object.keys(font.files).map(Number);
+  const max = Math.max(...available);
+  return Math.min(weight, max);
 }
 
 let registered = false;
